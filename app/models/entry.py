@@ -1,7 +1,10 @@
-from sqlalchemy import Column, String, DateTime
-from sqlalchemy.sql import func
 from uuid import uuid4
+
+from sqlalchemy import Column, DateTime, String
+from sqlalchemy.sql import func
+
 from app.db.base import Base
+
 
 class Entry(Base):
     __tablename__ = "entry"
@@ -11,4 +14,6 @@ class Entry(Base):
     struggle = Column(String(256), nullable=False)
     intention = Column(String(256), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )

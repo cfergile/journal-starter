@@ -5,7 +5,7 @@ ifneq (,$(wildcard .env))
 	export
 endif
 
-PYTHON ?= python
+PYTHON ?= python3
 
 .DEFAULT_GOAL := help
 .PHONY: help run test cov cov-xml ci migrate current revision downgrade \
