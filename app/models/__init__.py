@@ -1,4 +1,3 @@
 from .entry import Entry
-__all__ = [
-    'Entry'
-]
+
+__all__ = ["Entry"]

@@ -1,0 +1,11 @@
+# ruff.toml
+line-length = 100
+target-version = "py311"
+
+[lint]
+select = ["E", "F", "W", "I", "UP"]
+# Let Black decide wrapping; don't double-enforce line length
+ignore = ["E501"]
+
+# Migrations often have long lines / odd imports — ignore common rules there
+per-file-ignores = { "migrations/**" = ["E501", "I001", "F401", "UP007", "UP035"] }

@@ -1,10 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.schemas.entry import EntryCreate, EntryUpdate, EntryOut
-from app.services.entry_service import EntryService
 from app.db.session import get_db
+from app.schemas.entry import EntryCreate, EntryOut, EntryUpdate
+from app.services.entry_service import EntryService
 
 router = APIRouter(prefix="/entries", tags=["Journal Entries"])
 
@@ -31,7 +30,7 @@ async def create_entry(
 
 @router.get(
     "/",
-    response_model=List[EntryOut],
+    response_model=list[EntryOut],
 )
 async def list_entries(
     service: EntryService = Depends(get_entry_service),
