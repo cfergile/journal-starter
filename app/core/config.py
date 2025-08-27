@@ -4,8 +4,8 @@ from __future__ import annotations
 import os
 from functools import lru_cache
 
-from pydantic_settings import BaseSettings, SettingsConfigDict  # Pydantic v2 settings
 from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict  # Pydantic v2 settings
 
 
 class Settings(BaseSettings):
@@ -42,11 +42,7 @@ class Settings(BaseSettings):
           3) piecewise settings (db_user/password/host/port/name)
         Normalizes to 'postgresql+asyncpg://...' for the async engine.
         """
-        url = (
-            os.getenv("DATABASE_URL")
-            or os.getenv("database_url")
-            or self.DATABASE_URL
-        )
+        url = os.getenv("DATABASE_URL") or os.getenv("database_url") or self.DATABASE_URL
         if url:
             # Normalize to async driver
             if url.startswith("postgresql://"):
@@ -69,7 +65,7 @@ class Settings(BaseSettings):
         return url.replace("postgresql+asyncpg://", "postgresql://", 1)
 
 
-@lru_cache()
+@lru_cache
 def get_settings() -> Settings:
     return Settings()
 
