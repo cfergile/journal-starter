@@ -1,0 +1,52 @@
+# render.yaml — Blueprint deploy: Web (FastAPI) + Managed Postgres
+services:
+  - type: web
+    name: journal-api
+    env: python
+    plan: free
+    region: oregon
+    autoDeploy: true
+    # Use Pip + your requirements
+    buildCommand: |
+      pip install --upgrade pip
+      pip install -r requirements.txt
+    startCommand: >
+      bash -lc '
+      # Render supplies DATABASE_URL as postgres:// or postgresql:// (sync).
+      # Convert it to async for SQLAlchemy’s async engine at runtime.
+      export DATABASE_URL=$(echo "$DATABASE_URL" | sed -E "s/^postgres(ql)?:\/\//postgresql+asyncpg:\/\//");
+      # Run the app; Render sets $PORT
+      uvicorn app.main:app --host 0.0.0.0 --port $PORT
+      '
+    envVars:
+      # Optional app env knobs; safe defaults here
+      - key: APP_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: info
+      # SECRET_KEY can be rotated later in the dashboard
+      - key: SECRET_KEY
+        generateValue: true
+      # Link the managed DB; Render injects the connection string
+      - key: DATABASE_URL
+        fromDatabase:
+          name: journal-db
+          property: connectionString
+    healthCheckPath: /healthz
+    # Run DB migrations *after* each deploy
+    postdeployCommand: alembic upgrade head
+    headers:
+      - path: /*
+        name: Strict-Transport-Security
+        value: max-age=63072000; includeSubDomains; preload
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+
+databases:
+  - name: journal-db
+    plan: free
+    region: oregon
