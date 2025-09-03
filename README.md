@@ -1,138 +1,126 @@
 # Journal API
 
 [![CI](https://github.com/cfergile/journal-starter/actions/workflows/ci.yml/badge.svg)](https://github.com/cfergile/journal-starter/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/your-username/journal-starter/branch/main/graph/badge.svg)](https://codecov.io/gh/your-username/journal-starter)
+[![codecov](https://codecov.io/gh/cfergile/journal-starter/branch/main/graph/badge.svg)](https://codecov.io/gh/cfergile/journal-starter)
 
 A FastAPI-based CRUD Journal API built as part of the **Learn to Cloud Guide** capstone project.  
-The goal: practice Python, APIs, databases, and testing in one cohesive project.
+Goal: practice Python, APIs, databases, testing — and ship it publicly.
+
+---
+
+## 🌐 Live Demo (Render)
+- Base: **https://journal-starter.onrender.com**  
+- Health: **/healthz** → https://journal-starter.onrender.com/healthz  
+- Docs: **/docs** → https://journal-starter.onrender.com/docs
+
+> Note: Free tier may cold-start; first request can be a bit slow.
 
 ---
 
 ## 🎯 Objectives
 
-**Core objectives (capstone scope):**
-- Build a REST API with FastAPI  
-- Implement CRUD endpoints for journal entries  
-- Store data in PostgreSQL  
-- Use Alembic for migrations  
-- Test with pytest + httpx.AsyncClient  
+**Core (capstone):**
+- FastAPI REST API
+- CRUD for journal entries
+- PostgreSQL + Alembic migrations
+- pytest + httpx.AsyncClient tests
 
-**Extended objectives (added by me):**
-- Containerize with Docker & Docker Compose  
-- Run Postgres in a container (instead of installing locally)  
-- Provide reproducible dev/test environments  
+**Extended:**
+- Docker & Makefile for reproducible dev
+- CI quality gates (lint, type, security, coverage)
+- Public deploy on Render (free)
 
 ---
 
 ## 🚀 Features
 
-- **POST** `/entries/` — create a journal entry  
-- **GET** `/entries/` — list all entries  
-- **GET** `/entries/{id}` — get a single entry  
-- **PUT** `/entries/{id}` — update an entry  
-- **DELETE** `/entries/{id}` — delete an entry  
-- **GET** `/healthz` — health check  
+- **POST** `/entries/` — create entry  
+- **GET** `/entries/` — list entries  
+- **GET** `/entries/{id}` — get entry  
+- **PUT** `/entries/{id}` — update entry  
+- **DELETE** `/entries/{id}` — delete entry  
+- **GET** `/healthz` — health check
 
-Each entry includes:
-- `work` — what you worked on today  
-- `struggle` — something you struggled with  
-- `intention` — what you’ll work on tomorrow  
-- `id`, `created_at`, `updated_at`  
+Entry fields: `work`, `struggle`, `intention`, plus `id`, `created_at`, `updated_at`.
 
 ---
 
 ## 🛠 Setup Options
 
-### 1. Local Setup (capstone default)
+### 1) Local (recommended for dev)
+**Requirements:** Python 3.11+, local Postgres.
 
-**Requirements**
-- Python 3.11+  
-- PostgreSQL running locally  
-- Install dependencies: `pip install -r requirements.txt`
-
-**Steps**
 ```bash
-git clone https://github.com/your-username/journal-starter.git
+git clone https://github.com/cfergile/journal-starter.git
 cd journal-starter
 
 cp .env.example .env
-
-python -m venv .venv
-source .venv/bin/activate
-
+python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
+# DB migrate
 alembic upgrade head
 
-uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
-```
+# Run API
+uvicorn app.main:app --reload
+# or: make run
+API: http://localhost:8000
+Docs: http://localhost:8000/docs
 
-API available at: [http://localhost:8000](http://localhost:8000)
+2) Docker Compose
+Requirements: Docker / Docker Compose.
 
----
-
-### 2. Docker Compose Setup (extended option)
-
-This goes beyond the original capstone, demonstrating containerization skills.
-
-**Requirements**
-- Docker & Docker Compose
-
-**Steps**
-```bash
-git clone https://github.com/your-username/journal-starter.git
+bash
+Copy code
+git clone https://github.com/cfergile/journal-starter.git
 cd journal-starter
 
 cp .env.example .env
+make compose-up
+make compose-migrate  # runs alembic upgrade head in the container
+🧪 Testing & CI Quality Gates
+Local gates (mirror CI):
 
-docker compose up -d --build
+bash
+Copy code
+make precommit   # ruff, black, isort, mypy
+make test        # pytest -q
+make cov         # coverage in terminal
+make ci          # coverage XML + threshold ≥90%
+make lint-fix    # autofix linting
+CI includes: Ruff • Black • isort • mypy • pytest • Bandit • Trivy FS (passing) • Codecov.
 
-docker compose exec web alembic upgrade head
-```
+⚙️ Environment Variables
+See .env.example for full list.
 
-API available at: [http://localhost:8000](http://localhost:8000)
-
----
-
-## 🧪 Testing
-
-```bash
-pytest -q
-```
-
----
-
-## ⚙️ Environment Variables
-
-See `.env.example` for configuration.
-
-```ini
-# Database
-DB_HOST=db          # use 'localhost' if running locally
+ini
+Copy code
+# Database (pieces)
+DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=journal
 DB_USER=postgres
 DB_PASSWORD=postgres
 
-# Optional: full DSN (overrides pieces above)
-# DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/journal
-```
+# Optional full DSN for async SQLAlchemy
+# DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/journal
+Render deploy uses a managed Postgres add-on and provides a connection string via environment; the app’s Alembic env is configured to use psycopg3 for migrations.
 
----
+📦 Tech Stack
+FastAPI • SQLAlchemy 2.0 (async) • Alembic • PostgreSQL • pytest/httpx
+Ruff • Black • isort • mypy • Bandit • Trivy • GitHub Actions • Codecov
+Render (deploy)
 
-## 📦 Tech Stack
+📚 Learning Outcomes
+Built and tested a real async API with migrations
 
-- FastAPI (async API framework)  
-- SQLAlchemy 2.0 ORM (async engine)  
-- Alembic (migrations)  
-- PostgreSQL (database)  
-- Docker Compose (optional dev setup)  
-- pytest + httpx.AsyncClient (testing)  
+Reproducible dev via Makefile/Docker
 
----
+Hardened CI (lint/type/security/coverage)
 
-## 📚 Learning Outcomes
+Public deploy on Render with Postgres add-on
 
-- Met the original capstone objectives (API, CRUD, DB, tests)  
-- Extended with Dockerized deployment for reproducibility and cloud readiness  
-- Practiced modern Python backend development with async stack  
+☁️ Deployment
+✅ Render (live): https://journal-starter.onrender.com
+
+🔜 Optional: AWS (ECS/App Runner) as a multi-cloud showcase
