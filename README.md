@@ -4,7 +4,7 @@
 [![codecov](https://codecov.io/gh/cfergile/journal-starter/branch/main/graph/badge.svg)](https://codecov.io/gh/cfergile/journal-starter)
 ![Release](https://img.shields.io/github/v/release/cfergile/journal-starter?sort=semver)
 [![Uptime - API Health](https://github.com/cfergile/journal-starter/actions/workflows/uptime.yml/badge.svg)](https://github.com/cfergile/journal-starter/actions/workflows/uptime.yml)
-
+[![k6 CRUD (ephemeral env)](https://github.com/cfergile/journal-starter/actions/workflows/k6-crud-ephemeral.yml/badge.svg)](https://github.com/cfergile/journal-starter/actions/workflows/k6-crud-ephemeral.yml)
 
 A FastAPI-based CRUD Journal API built as part of the **Learn to Cloud Guide** capstone project.  
 Goal: practice Python, APIs, databases, testing — and ship it publicly.
@@ -33,6 +33,7 @@ Goal: practice Python, APIs, databases, testing — and ship it publicly.
 - Docker & Makefile for reproducible dev
 - CI quality gates (lint, type, security, coverage)
 - Public deploy on Render (free)
+- Ops & Monitoring (health, metrics, uptime + Slack, k6)
 
 ---
 
@@ -43,7 +44,8 @@ Goal: practice Python, APIs, databases, testing — and ship it publicly.
 - **GET** `/entries/{id}` — get entry  
 - **PUT** `/entries/{id}` — update entry  
 - **DELETE** `/entries/{id}` — delete entry  
-- **GET** `/healthz` — health check
+- **GET** `/healthz` — health check  
+- **GET** `/metrics` — Prometheus metrics (enabled when `PROMETHEUS_ENABLED=true`)
 
 Entry fields: `work`, `struggle`, `intention`, plus `id`, `created_at`, `updated_at`.
 
@@ -96,6 +98,21 @@ make ci          # coverage XML + threshold ≥90%
 make lint-fix    # autofix linting
 CI includes: Ruff • Black • isort • mypy • pytest • Bandit • Trivy FS (passing) • Codecov.
 
+k6 quick checks
+bash
+Copy code
+# Smoke test against prod (hits /healthz)
+make smoke
+# Override to test locally:
+make smoke BASE_URL=http://localhost:8000
+
+# CRUD test against local dev (safe)
+make crud-local
+
+# (Opt-in) CRUD against prod (mutates prod data — only when you mean it)
+make crud-prod
+Ephemeral E2E (CI): the k6-crud-ephemeral.yml workflow spins up Postgres → runs Alembic → starts the API → runs the k6 CRUD test. Does not touch prod/staging.
+
 ⚙️ Environment Variables
 See .env.example for the full list.
 
@@ -106,21 +123,47 @@ DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=journal
 DB_USER=postgres
-DB_PASSWORD=postgres
+DB_PASSWORD=change_this_password
 
-# Optional full DSN for async SQLAlchemy (authoritative in code as settings.database_url)
+# Optional full DSN for async SQLAlchemy (authoritative at runtime via settings.database_url)
 # DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/journal
-Alembic is configured to use the sync form of the URL for migrations automatically (psycopg3), while the app uses the async URL at runtime.
 
-Render deploy uses a managed Postgres add-on and provides a connection string via environment.
+# Ops
+LOG_LEVEL=INFO
+# Enable Prometheus /metrics
+PROMETHEUS_ENABLED=true
+# Optional error tracking
+# SENTRY_DSN=...
+Alembic uses a sync URL for migrations, while the app uses the async DSN at runtime.
+Render injects DATABASE_URL; the render.yaml converts it to postgresql+asyncpg:// on start.
 
+🛡️ Ops & Monitoring
+Healthcheck: GET /healthz → {"status":"ok"}
+
+Metrics: GET /metrics (enabled when PROMETHEUS_ENABLED=true)
+
+Logging: Python logging + Uvicorn access logs (LOG_LEVEL=INFO by default)
+
+Uptime: GitHub Actions cron (warm-up, retries, Slack alert on failure)
+
+Runtime: Inspect deploy history, logs, and health via Render dashboard
+
+Quick checks:
+
+bash
+Copy code
+# health
+curl -fsS https://journal-starter.onrender.com/healthz || echo "DOWN"
+
+# metrics (if enabled)
+curl -fsS https://journal-starter.onrender.com/metrics | head
 📦 Tech Stack
 FastAPI • SQLAlchemy 2.0 (async) • Alembic • PostgreSQL • pytest/httpx
 Ruff • Black • isort • mypy • Bandit • Trivy • GitHub Actions • Codecov
-Render (deploy)
+Render (deploy) • Prometheus-style metrics • k6
 
 📚 Learning Outcomes
-Built and tested a real async API with migrations
+Built and tested an async API with migrations
 
 Reproducible dev via Makefile/Docker
 
@@ -128,52 +171,30 @@ Hardened CI (lint/type/security/coverage)
 
 Public deploy on Render with Postgres add-on
 
+Ops: health, metrics, uptime+Slack, smoke/CRUD performance checks
+
 ☁️ Deployment
 ✅ Render (live): https://journal-starter.onrender.com
-🔜 Optional: AWS (ECS/App Runner) as a multi-cloud showcase
 
-🛡️ Ops & Monitoring
-Healthcheck: GET /healthz → 200 {"status":"ok"}
+🤝 How to Contribute
+Contributions welcome!
 
-Logging: Python logging + Uvicorn access logs (LOG_LEVEL=INFO by default).
+Fork & clone this repo.
 
-Runtime: Inspect deploy history, logs, and health via Render dashboard.
+Create a branch: git checkout -b feat/short-title
 
-Uptime check (simple):
-
-bash
-Copy code
-curl -fsS https://journal-starter.onrender.com/healthz || echo "DOWN"
-Extensible:
-
-Metrics: add prometheus-fastapi-instrumentator and expose /metrics
-
-python
-Copy code
-# app/main.py
-from fastapi import FastAPI
-from prometheus_fastapi_instrumentator import Instrumentator
-
-app = FastAPI()
-Instrumentator().instrument(app).expose(app, endpoint="/metrics")
-Errors: add Sentry (sentry-sdk[fastapi]) and set SENTRY_DSN in env
-
-python
-Copy code
-# app/main.py
-import os
-from sentry_sdk import init as sentry_init
-from sentry_sdk.integrations.fastapi import FastApiIntegration
-
-if (dsn := os.getenv("SENTRY_DSN")):
-    sentry_init(dsn=dsn, integrations=[FastApiIntegration()])
-Traces: OpenTelemetry SDK + OTLP to Grafana Cloud/Datadog (optional).
-
-🔖 Releases
-Latest tag: see the badge above or the Releases page.
-
-Create/publish with GitHub CLI:
+Set up locally and run checks:
 
 bash
 Copy code
-gh release create vX.Y.Z --title "vX.Y.Z" --generate-notes
+make precommit
+make ci
+Add tests for new behavior when possible.
+
+Commit with a clear message (e.g., feat: add XYZ or fix: handle ABC).
+
+Push & open a PR against main.
+
+Ensure CI is green (lint, tests, security, coverage).
+
+Thanks for helping make this project better!
