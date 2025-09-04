@@ -1,0 +1,14 @@
+name: Test Slack Webhook
+on:
+  workflow_dispatch:
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send test Slack message
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+            --data '{"text":"Test from GitHub Actions :white_check_mark: (journal-starter)"}' \
+            "$SLACK_WEBHOOK_URL"
