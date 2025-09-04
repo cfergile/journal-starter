@@ -38,6 +38,38 @@ async def healthcheck() -> dict[str, str]:
     return {"status": "ok"}
 
 
+# -------------------- Ops & Monitoring --------------------
+# 1) Logging level from env (defaults to INFO)
+_level = os.getenv("LOG_LEVEL", "INFO").upper()
+logging.getLogger().setLevel(_level)
+for _name in ("uvicorn", "uvicorn.access", "uvicorn.error", "sqlalchemy"):
+    logging.getLogger(_name).setLevel(_level)
+
+# 2) Prometheus metrics at /metrics (guarded by env + optional dep)
+if os.getenv("PROMETHEUS_ENABLED", "true").lower() in {"1", "true", "yes"}:
+    try:
+        from prometheus_fastapi_instrumentator import Instrumentator
+
+        Instrumentator().instrument(app).expose(
+            app, endpoint="/metrics", include_in_schema=False
+        )
+    except Exception as e:  # pragma: no cover
+        logging.getLogger(__name__).warning("Prometheus metrics disabled: %s", e)
+
+# 3) Sentry (enabled only if SENTRY_DSN is set)
+_dsn = os.getenv("SENTRY_DSN")
+if _dsn:
+    try:
+        from sentry_sdk import init as sentry_init
+        from sentry_sdk.integrations.fastapi import FastApiIntegration
+
+        sentry_init(dsn=_dsn, integrations=[FastApiIntegration()])
+        logging.getLogger(__name__).info("Sentry initialized")
+    except Exception as e:  # pragma: no cover
+        logging.getLogger(__name__).warning("Sentry disabled: %s", e)
+# ----------------------------------------------------------
+
+
 # API routes
 app.include_router(journal_router)
 

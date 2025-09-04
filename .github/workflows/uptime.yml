@@ -31,3 +31,12 @@ jobs:
           echo "Last response (truncated):"
           head -c 300 /tmp/resp || true
           exit 1
+
+      - name: Check /metrics when enabled
+        if: always()
+        run: |
+          METRICS_URL="https://journal-starter.onrender.com/metrics"
+          CODE="$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$METRICS_URL" || true)"
+          echo "METRICS_HTTP_CODE=$CODE"
+          # Don’t fail the job if metrics are disabled; treat 200 as a nice-to-have
+          test "$CODE" = "200" && echo "Metrics OK ✅" || echo "Metrics not available (OK if disabled)"

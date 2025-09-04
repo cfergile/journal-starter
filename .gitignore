@@ -174,3 +174,4 @@ cython_debug/
 
 # macOS
 .DS_Store
+STATE.md.bak-*
