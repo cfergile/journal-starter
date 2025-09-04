@@ -2,7 +2,7 @@ name: Uptime - API Health
 
 on:
   schedule:
-    - cron: "*/30 * * * *"   # every 30 minutes (UTC)
+    - cron: "*/10 * * * *"   # every 10 minutes (UTC)
   workflow_dispatch:
 
 jobs:
@@ -39,3 +39,20 @@ jobs:
           CODE="$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "$METRICS_URL" || true)"
           echo "METRICS_HTTP_CODE=$CODE"
           test "$CODE" = "200" && echo "Metrics OK ✅" || echo "Metrics not available (OK if disabled)"
+      - name: Slack alert on failure
+        if: failure()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+            --data "{\"text\":\"Uptime check failed for *journal-starter* :x: — investigate /healthz.\"}" \
+            "$SLACK_WEBHOOK_URL"
+
+      - name: Send test Slack message
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+            --data '{"text":"Manual test of Slack alerts for *journal-starter* :white_check_mark:"}' \
+            "$SLACK_WEBHOOK_URL"
