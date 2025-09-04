@@ -1,0 +1,33 @@
+name: k6 CRUD
+on:
+  schedule:
+    - cron: "15 7 * * *"   # daily at 07:15 UTC
+  workflow_dispatch:
+
+jobs:
+  crud:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      BASE_URL: https://your-staging.example.com
+      ALLOW_PROD: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install k6
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y gnupg2 ca-certificates
+          curl -fsSL https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update -y
+          sudo apt-get install -y k6
+      - name: Run k6 CRUD
+        run: k6 run k6/entries_crud.js
+      - name: Slack alert on failure
+        if: failure()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+            --data "{\"text\":\"k6 CRUD failed for *journal-starter* :x: — investigate.\nRun: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\"}" \
+            "$SLACK_WEBHOOK_URL"
