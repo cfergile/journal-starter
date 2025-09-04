@@ -1,0 +1,33 @@
+name: Uptime - API Health
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"   # every 30 minutes (UTC)
+  workflow_dispatch:          # allow manual runs
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      URL: https://journal-starter.onrender.com/healthz
+    steps:
+      - name: Check health endpoint
+        run: |
+          set -euo pipefail
+          # Try up to 3 times (handles cold starts)
+          for i in 1 2 3; do
+            OUT="$(curl -s -o /tmp/resp -w "%{http_code} %{time_total}" --max-time 15 "$URL" || true)"
+            CODE="$(echo "$OUT" | awk '{print $1}')"
+            LATENCY="$(echo "$OUT" | awk '{print $2}')"
+            echo "Attempt $i: HTTP_CODE=$CODE LATENCY=${LATENCY}s"
+            if [ "$CODE" = "200" ]; then
+              echo "OK ✅"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Healthcheck failed after 3 attempts ❌"
+          echo "Last response (truncated):"
+          head -c 300 /tmp/resp || true
+          exit 1
