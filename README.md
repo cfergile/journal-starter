@@ -1,3 +1,10 @@
+Got you. Here’s a one-shot command that backs up your current README, writes the polished version (with a “How to Contribute” footer), and commits it.
+
+````bash
+# Backup, replace README.md, and commit
+cp README.md README.md.bak-$(date +%F) 2>/dev/null || true
+
+cat > README.md <<'MD'
 # Journal API
 
 [![CI](https://github.com/cfergile/journal-starter/actions/workflows/ci.yml/badge.svg)](https://github.com/cfergile/journal-starter/actions/workflows/ci.yml)
@@ -75,32 +82,40 @@ uvicorn app.main:app --reload
 # Local endpoints
 # API:  http://localhost:8000
 # Docs: http://localhost:8000/docs
-2) Docker Compose
-Requirements: Docker / Docker Compose.
+````
 
-bash
-Copy code
+### 2) Docker Compose
+
+**Requirements:** Docker / Docker Compose.
+
+```bash
 git clone https://github.com/cfergile/journal-starter.git
 cd journal-starter
 
 cp .env.example .env
 make compose-up
 make compose-migrate  # runs Alembic upgrade in the container
-🧪 Testing & CI Quality Gates
+```
+
+---
+
+## 🧪 Testing & CI Quality Gates
+
 Local gates (mirror CI):
 
-bash
-Copy code
+```bash
 make precommit   # ruff, black, isort, mypy
 make test        # pytest -q
 make cov         # coverage in terminal
 make ci          # coverage XML + threshold ≥90%
 make lint-fix    # autofix linting
+```
+
 CI includes: Ruff • Black • isort • mypy • pytest • Bandit • Trivy FS (passing) • Codecov.
 
-k6 quick checks
-bash
-Copy code
+### k6 quick checks
+
+```bash
 # Smoke test against prod (hits /healthz)
 make smoke
 # Override to test locally:
@@ -111,13 +126,17 @@ make crud-local
 
 # (Opt-in) CRUD against prod (mutates prod data — only when you mean it)
 make crud-prod
-Ephemeral E2E (CI): the k6-crud-ephemeral.yml workflow spins up Postgres → runs Alembic → starts the API → runs the k6 CRUD test. Does not touch prod/staging.
+```
 
-⚙️ Environment Variables
-See .env.example for the full list.
+Ephemeral E2E (CI): the `k6-crud-ephemeral.yml` workflow spins up Postgres → runs Alembic → starts the API → runs the k6 CRUD test. Does **not** touch prod/staging.
 
-ini
-Copy code
+---
+
+## ⚙️ Environment Variables
+
+See `.env.example` for the full list.
+
+```ini
 # Database (pieces)
 DB_HOST=localhost
 DB_PORT=5432
@@ -134,67 +153,74 @@ LOG_LEVEL=INFO
 PROMETHEUS_ENABLED=true
 # Optional error tracking
 # SENTRY_DSN=...
+```
+
 Alembic uses a sync URL for migrations, while the app uses the async DSN at runtime.
-Render injects DATABASE_URL; the render.yaml converts it to postgresql+asyncpg:// on start.
+Render injects `DATABASE_URL`; the `render.yaml` converts it to `postgresql+asyncpg://` on start.
 
-🛡️ Ops & Monitoring
-Healthcheck: GET /healthz → {"status":"ok"}
+---
 
-Metrics: GET /metrics (enabled when PROMETHEUS_ENABLED=true)
+## 🛡️ Ops & Monitoring
 
-Logging: Python logging + Uvicorn access logs (LOG_LEVEL=INFO by default)
+* Healthcheck: `GET /healthz` → `{"status":"ok"}`
+* Metrics: `GET /metrics` (enabled when `PROMETHEUS_ENABLED=true`)
+* Logging: Python logging + Uvicorn access logs (`LOG_LEVEL=INFO` by default)
+* Uptime: GitHub Actions cron (warm-up, retries, Slack alert on failure)
+* Runtime: Inspect deploy history, logs, and health via Render dashboard
 
-Uptime: GitHub Actions cron (warm-up, retries, Slack alert on failure)
+**Quick checks:**
 
-Runtime: Inspect deploy history, logs, and health via Render dashboard
-
-Quick checks:
-
-bash
-Copy code
+```bash
 # health
 curl -fsS https://journal-starter.onrender.com/healthz || echo "DOWN"
 
 # metrics (if enabled)
 curl -fsS https://journal-starter.onrender.com/metrics | head
-📦 Tech Stack
+```
+
+---
+
+## 📦 Tech Stack
+
 FastAPI • SQLAlchemy 2.0 (async) • Alembic • PostgreSQL • pytest/httpx
 Ruff • Black • isort • mypy • Bandit • Trivy • GitHub Actions • Codecov
 Render (deploy) • Prometheus-style metrics • k6
 
-📚 Learning Outcomes
-Built and tested an async API with migrations
+---
 
-Reproducible dev via Makefile/Docker
+## 📚 Learning Outcomes
 
-Hardened CI (lint/type/security/coverage)
+* Built and tested an async API with migrations
+* Reproducible dev via Makefile/Docker
+* Hardened CI (lint/type/security/coverage)
+* Public deploy on Render with Postgres add-on
+* Ops: health, metrics, uptime+Slack, smoke/CRUD performance checks
 
-Public deploy on Render with Postgres add-on
+---
 
-Ops: health, metrics, uptime+Slack, smoke/CRUD performance checks
+## ☁️ Deployment
 
-☁️ Deployment
-✅ Render (live): https://journal-starter.onrender.com
+✅ Render (live): [https://journal-starter.onrender.com](https://journal-starter.onrender.com)
 
-🤝 How to Contribute
+---
+
+## 🤝 How to Contribute
+
 Contributions welcome!
 
-Fork & clone this repo.
+1. **Fork & clone** this repo.
+2. **Create a branch**: `git checkout -b feat/short-title`
+3. **Set up locally** and run checks:
 
-Create a branch: git checkout -b feat/short-title
-
-Set up locally and run checks:
-
-bash
-Copy code
-make precommit
-make ci
-Add tests for new behavior when possible.
-
-Commit with a clear message (e.g., feat: add XYZ or fix: handle ABC).
-
-Push & open a PR against main.
-
-Ensure CI is green (lint, tests, security, coverage).
+   ```bash
+   make precommit
+   make ci
+   ```
+4. **Add tests** for new behavior when possible.
+5. **Commit** with a clear message (e.g., `feat: add XYZ` or `fix: handle ABC`).
+6. **Push & open a PR** against `main`.
+7. Ensure **CI is green** (lint, tests, security, coverage).
 
 Thanks for helping make this project better!
+MD
+

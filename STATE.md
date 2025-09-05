@@ -27,18 +27,18 @@
 14. CI quality gates — ✅ Complete (Ruff + Black + mypy + Bandit + **Trivy passing**)  
 15. README polish — ✅ Updated (quickstart, env, CI gates, Render demo + uptime badge)  
 16. Deployment — ✅ **Render** live (blueprint with `healthCheckPath: /healthz`, post-deploy `alembic upgrade head`)  
-17. **Ops & Monitoring** — ✅ `/metrics` (Prometheus) optional; **uptime workflow** (30-min cron) with **warm-up + retries** and **Slack alerts on failure**
+17. **Ops & Monitoring** — ✅ `/metrics` (Prometheus) optional; **uptime workflow** (30-min cron) with warm-up + retries + Slack alerts  
+18. **k6** — ✅ Smoke (`/healthz`) and **CRUD** tests added; Makefile targets `smoke`, `crud-local`, `crud-prod`  
+19. **Ephemeral E2E CI** — ✅ Postgres service → Alembic → API → k6 CRUD (manual trigger)
 
 ## Current step
-* Prep **v1.0.2** tag for Ops & Monitoring.
-* Optional: increase uptime frequency to every **10 min** to reduce cold starts.
-* Optional: enable Sentry (`SENTRY_DSN`) and add brief runbook/triage notes in README.
-* Optional: multi-cloud showcase (AWS App Runner/ECS) with IaC snippet.
+* Project complete. Future items below are optional polish only.
 
 ## Test status
 * Summary: **24 passed** locally (`pytest -q` on 2025-09-02); **24 passed** in CI.
 * Coverage: ~90%+ (threshold enforced).
-* Uptime workflow: latest scheduled/manual runs **passing**; Slack alerts configured.
+* Uptime workflow: latest scheduled/manual runs **passing** (Slack on failure).
+* k6: smoke p95 < 800ms (prod); CRUD passes with `unexpected_error_rate==0`.
 
 ## Database & migrations
 * Local DB: Postgres 16 @ localhost:5432  
@@ -46,23 +46,18 @@
 * Alembic head: **73f82b54943b** (`add_entry_table`)  
 * `alembic current`: ✅ matches head  
 * Pending migrations: **0**  
-* CI DB: GitHub Actions Postgres service
+* CI DB: GitHub Actions Postgres service (ephemeral workflow)
 
 ## Deployment notes
-* `render.yaml`: converts `postgres://` → `postgresql+asyncpg://` at start; sets `LOG_LEVEL=INFO`, `PROMETHEUS_ENABLED=true`; `healthCheckPath: /healthz`; `postdeployCommand: alembic upgrade head`.
+* `render.yaml`: converts `postgres://` → `postgresql+asyncpg://`; `LOG_LEVEL=INFO`; `PROMETHEUS_ENABLED=true`; `healthCheckPath: /healthz`; `postdeployCommand: alembic upgrade head`.
 * App exposes `/metrics` when `PROMETHEUS_ENABLED=true`.
 
 ## Releases
 * **v1.0.0** — first deployed version (Render)  
 * **v1.0.1** — docs/state updates; Render blueprint & polish  
-* **Next:** **v1.0.2** — Ops & Monitoring (/metrics, uptime workflow, Slack alerts)
+* **v1.0.2** — Ops & Monitoring: metrics + uptime (Slack) + k6 + ephemeral E2E
 
-## Open issues / TODOs
-* [ ] Optional: Sentry DSN + minimal error triage doc.  
-* [ ] Optional: performance/load tests + simple SLOs.  
-* [ ] Optional: AWS deploy (App Runner or ECS/Fargate) manifest.
-
-## Next actions (concrete)
-1. Tag **v1.0.2**: “Ops & Monitoring: /metrics + uptime workflow + Slack alerts”.  
-2. (Optional) Bump uptime cron to `*/10` if GitHub Actions minutes aren’t a concern.  
-3. (Optional) Add a short “Error triage” note in README (where to look first, rollback tip).
+## Optional next ideas
+* [ ] Sentry DSN + 2-line error triage note in README.  
+* [ ] Light load/perf tests and SLOs.  
+* [ ] Multi-cloud showcase (AWS App Runner/ECS) with IaC snippet.
