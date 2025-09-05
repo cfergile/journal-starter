@@ -50,9 +50,7 @@ if os.getenv("PROMETHEUS_ENABLED", "true").lower() in {"1", "true", "yes"}:
     try:
         from prometheus_fastapi_instrumentator import Instrumentator
 
-        Instrumentator().instrument(app).expose(
-            app, endpoint="/metrics", include_in_schema=False
-        )
+        Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
     except Exception as e:  # pragma: no cover
         logging.getLogger(__name__).warning("Prometheus metrics disabled: %s", e)
 

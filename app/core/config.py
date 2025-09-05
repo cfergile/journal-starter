@@ -5,7 +5,7 @@ import os
 from functools import lru_cache
 from typing import ClassVar
 
-from pydantic import Field, AliasChoices, field_validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict  # Pydantic v2 settings
 
 
@@ -23,7 +23,9 @@ class Settings(BaseSettings):
     db_port: int = Field(default=5432, validation_alias=AliasChoices("DB_PORT", "db_port"))
     db_name: str = Field(default="journal", validation_alias=AliasChoices("DB_NAME", "db_name"))
     db_user: str = Field(default="postgres", validation_alias=AliasChoices("DB_USER", "db_user"))
-    db_password: str = Field(default="postgres", validation_alias=AliasChoices("DB_PASSWORD", "db_password"))
+    db_password: str = Field(
+        default="postgres", validation_alias=AliasChoices("DB_PASSWORD", "db_password")
+    )
 
     # Full DSN override (authoritative if provided)
     DATABASE_URL: str | None = Field(
@@ -33,18 +35,31 @@ class Settings(BaseSettings):
 
     # ---------------------- Ops & Monitoring ----------------------
     log_level: str = Field(default="INFO", validation_alias=AliasChoices("LOG_LEVEL", "log_level"))
-    prometheus_enabled: bool = Field(default=True, validation_alias=AliasChoices("PROMETHEUS_ENABLED", "prometheus_enabled"))
-    sentry_dsn: str | None = Field(default=None, validation_alias=AliasChoices("SENTRY_DSN", "sentry_dsn"))
-    dev_bind_all: bool = Field(default=False, validation_alias=AliasChoices("DEV_BIND_ALL", "dev_bind_all"))
+    prometheus_enabled: bool = Field(
+        default=True, validation_alias=AliasChoices("PROMETHEUS_ENABLED", "prometheus_enabled")
+    )
+    sentry_dsn: str | None = Field(
+        default=None, validation_alias=AliasChoices("SENTRY_DSN", "sentry_dsn")
+    )
+    dev_bind_all: bool = Field(
+        default=False, validation_alias=AliasChoices("DEV_BIND_ALL", "dev_bind_all")
+    )
 
     # Allowed levels (class-level constant for validation)
-    _ALLOWED_LEVELS: ClassVar[set[str]] = {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", "NOTSET"}
+    _ALLOWED_LEVELS: ClassVar[set[str]] = {
+        "CRITICAL",
+        "ERROR",
+        "WARNING",
+        "INFO",
+        "DEBUG",
+        "NOTSET",
+    }
 
     # Pydantic v2 settings config:
     model_config = SettingsConfigDict(
         env_file=".env",
-        extra="ignore",   # tolerate unrelated keys (avoids Alembic crashes)
-        env_prefix="",    # read variables as-is
+        extra="ignore",  # tolerate unrelated keys (avoids Alembic crashes)
+        env_prefix="",  # read variables as-is
     )
 
     # Normalize/validate log level
@@ -67,11 +82,7 @@ class Settings(BaseSettings):
         Normalizes to 'postgresql+asyncpg://...' for the async engine.
         """
         # Prefer what Pydantic loaded, but also look directly at the environment
-        url = (
-            os.getenv("DATABASE_URL")
-            or os.getenv("database_url")
-            or self.DATABASE_URL
-        )
+        url = os.getenv("DATABASE_URL") or os.getenv("database_url") or self.DATABASE_URL
         if url:
             # Normalize to async driver if needed
             if url.startswith("postgresql://"):
