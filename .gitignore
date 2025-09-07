@@ -178,3 +178,4 @@ STATE.md.bak-*
 
 # editor/one-off backups
 *.bak-*
+.venv/
