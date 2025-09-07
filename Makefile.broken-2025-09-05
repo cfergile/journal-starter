@@ -1,8 +1,9 @@
-# ===== journal-starter — Makefile =====
-# Auto-load .env if present
+cat > Makefile <<'MAKEFILE'
+# ===== journal-starter — Minimal/Enhanced Makefile =====
+# Auto-load .env if it exists (safe: pydantic ignores extras)
 ifneq (,$(wildcard .env))
-include .env
-export
+	include .env
+	export
 endif
 
 PYTHON ?= python3
@@ -20,11 +21,7 @@ BASE_URL ?= https://journal-starter.onrender.com
         smoke crud-local crud-prod
 
 help: ## Show available targets
-	@grep -hE '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) \
-	| sed -E 's/^([a-zA-Z0-9_-]+):.*## /\1:	/' \
-	| sort
-| sed -E 's/^([a-zA-Z0-9_-]+):.*## /\1:/' \
-| sort
+	@grep -E '^[a-zA-Z0-9_\-]+:.*?## ' $(MAKEFILE_LIST) | sed 's/:.*## /:\t/' | sort
 
 # ---- Local (no Docker) -------------------------------------------------------
 
@@ -65,7 +62,7 @@ format: ## Format code with black & isort
 	$(PYTHON) -m black app tests
 	$(PYTHON) -m isort app tests
 
-format-check: ## Check formatting (no changes)
+format-check: ## Check formatting (no changes) — good for pre-commit/CI
 	$(PYTHON) -m black --check app tests
 	$(PYTHON) -m isort --check-only app tests
 
@@ -75,7 +72,7 @@ lint: ## Lint with ruff
 lint-fix: ## Lint & autofix with ruff
 	$(PYTHON) -m ruff check --fix app tests
 
-types: ## Type check with mypy
+types: ## Type check with mypy (optional; install mypy)
 	$(PYTHON) -m mypy app
 
 precommit: ## Run local quality gates (lint, format-check, types)
@@ -124,7 +121,7 @@ db-wait: ## Wait for local Postgres to accept connections (needs pg_isready)
 	done; \
 	echo "Postgres is ready."
 
-# ---- Docker Compose workflow -------------------------------------------------
+# ---- Docker Compose workflow (recommended extension) -------------------------
 
 compose-up: ## Build and start API + DB via docker compose
 	docker compose up -d --build
@@ -158,3 +155,4 @@ crud-local: ## k6 CRUD against local dev (http://localhost:8000)
 
 crud-prod: ## (opt-in) k6 CRUD against prod (sets ALLOW_PROD=true)
 	BASE_URL=https://journal-starter.onrender.com ALLOW_PROD=true $(K6) run k6/entries_crud.js
+MAKEFILE
