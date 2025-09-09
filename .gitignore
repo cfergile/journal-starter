@@ -179,3 +179,10 @@ STATE.md.bak-*
 # editor/one-off backups
 *.bak-*
 .venv/
+__pycache__/
+*.py[cod]
+coverage.xml
+*.bak*
+Makefile.backup-*
+Makefile.broken-*
+.DS_Store
