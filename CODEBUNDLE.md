@@ -1,0 +1,1417 @@
+# CODEBUNDLE — journal-starter
+
+This single file bundles the essential source, config, migrations, and a k6 CRUD script for **cfergile/journal-starter**.
+
+- Generated on: '"$(date)"'
+- Files included: 20
+- Notes:
+  - Makefile blocks **must keep tabs** (we do not touch tabs here).
+  - Alembic: app runs async, migrations use sync (psycopg).
+  - For local runs: Python venv + Homebrew Postgres 16 (or Docker/Compose).
+  - Render: see `render.yaml`.
+
+---
+
+---
+
+## requirements.txt
+
+```text
+alembic==1.16.2
+annotated-types==0.7.0
+anyio==4.9.0
+asyncpg==0.30.0
+certifi==2025.6.15
+click==8.2.1
+fastapi==0.116.0
+greenlet==3.2.3
+h11==0.16.0
+httpcore==1.0.9
+httptools==0.6.4
+httpx==0.28.1
+idna==3.10
+iniconfig==2.1.0
+Mako==1.3.10
+MarkupSafe==3.0.2
+packaging==25.0
+pluggy==1.6.0
+prometheus-fastapi-instrumentator>=7.0.0
+psycopg[binary]==3.2.9
+pydantic==2.11.7
+pydantic-settings==2.10.1
+pydantic_core==2.33.2
+Pygments==2.19.2
+pytest==8.4.1
+pytest-asyncio==1.0.0
+python-dotenv==1.1.1
+PyYAML==6.0.2
+sentry-sdk[fastapi]>=2.0.0
+sniffio==1.3.1
+SQLAlchemy==2.0.41
+starlette==0.46.2
+typing-inspection==0.4.1
+typing_extensions==4.14.1
+uvicorn==0.35.0
+uvloop==0.21.0
+watchfiles==1.1.0
+websockets==15.0.1
+
+
+```
+
+---
+
+## alembic.ini
+
+```ini
+[alembic]
+script_location = migrations
+prepend_sys_path = .
+
+# Placeholder (actual URI is injected from config.py in env.py)
+sqlalchemy.url = placeholder
+
+[loggers]
+keys = root,sqlalchemy,alembic
+
+[handlers]
+keys = console
+
+[formatters]
+keys = generic
+
+[logger_root]
+level = WARN
+handlers = console
+
+[logger_sqlalchemy]
+level = WARN
+handlers =
+qualname = sqlalchemy.engine
+
+[logger_alembic]
+level = INFO
+handlers =
+qualname = alembic
+
+[handler_console]
+class = StreamHandler
+args = (sys.stderr,)
+level = NOTSET
+formatter = generic
+
+[formatter_generic]
+format = %(levelname)-5.5s [%(name)s] %(message)s
+datefmt = %H:%M:%S
+
+```
+
+---
+
+## migrations/env.py
+
+```python
+# migrations/env.py
+from __future__ import annotations
+
+import os
+import sys
+from logging.config import fileConfig
+
+from alembic import context
+from sqlalchemy import engine_from_config, pool
+
+# Make the app importable when Alembic runs from the repo root
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+from app.core.config import settings  # noqa: E402
+from app.db.base import Base  # noqa: E402
+from app.models import entry  # noqa: F401,E402  # ensure models import so metadata is populated
+
+# Alembic Config object
+config = context.config
+if config.config_file_name is not None:
+    fileConfig(config.config_file_name)
+
+# -------------------------------
+# Build a **sync** SQLAlchemy URL
+# -------------------------------
+# 1) Prefer DATABASE_URL from the environment (CI sets this)
+env_database_url = os.getenv("DATABASE_URL")
+
+if env_database_url:
+    raw_url = env_database_url
+else:
+    # 2) Else build from DB_* envs with sane defaults,
+    #    falling back to values from settings for name/user/password.
+    host = os.getenv("DB_HOST", settings.db_host)
+    port = os.getenv("DB_PORT", settings.db_port)
+    name = os.getenv("DB_NAME", settings.db_name)
+    user = os.getenv("DB_USER", settings.db_user)
+    password = os.getenv("DB_PASSWORD", settings.db_password)
+    raw_url = f"postgresql://{user}:{password}@{host}:{port}/{name}"
+
+# Alembic must use a **sync** driver; strip +asyncpg if present
+sync_url = raw_url.replace("+asyncpg", "")
+
+# Force psycopg (v3) driver so Alembic doesn't try psycopg2
+if sync_url.startswith("postgresql://"):
+    sync_url = sync_url.replace("postgresql://", "postgresql+psycopg://", 1)
+
+print(f"[alembic] Using SQLAlchemy URL: {sync_url}")
+config.set_main_option("sqlalchemy.url", sync_url)
+
+target_metadata = Base.metadata
+
+
+def run_migrations_offline() -> None:
+    """Run migrations in 'offline' mode."""
+    url = config.get_main_option("sqlalchemy.url")
+    context.configure(
+        url=url,
+        target_metadata=target_metadata,
+        literal_binds=True,
+        dialect_opts={"paramstyle": "named"},
+    )
+    with context.begin_transaction():
+        context.run_migrations()
+
+
+def run_migrations_online() -> None:
+    """Run migrations in 'online' mode."""
+    connectable = engine_from_config(
+        config.get_section(config.config_ini_section),
+        prefix="sqlalchemy.",
+        poolclass=pool.NullPool,
+    )
+    with connectable.connect() as connection:
+        context.configure(connection=connection, target_metadata=target_metadata)
+        with context.begin_transaction():
+            context.run_migrations()
+
+
+if context.is_offline_mode():
+    run_migrations_offline()
+else:
+    run_migrations_online()
+
+```
+
+---
+
+## migrations/versions/9d02a3138fb2_initial_schema.py
+
+```python
+"""Initial schema
+
+Revision ID: 9d02a3138fb2
+Revises:
+Create Date: 2025-07-07 17:56:37.747454
+
+"""
+from typing import Sequence, Union
+
+from alembic import op
+import sqlalchemy as sa
+
+
+# revision identifiers, used by Alembic.
+revision: str = '9d02a3138fb2'
+down_revision: Union[str, Sequence[str], None] = None
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+
+def upgrade() -> None:
+    """Upgrade schema."""
+    # ### commands auto generated by Alembic - please adjust! ###
+    pass
+    # ### end Alembic commands ###
+
+
+def downgrade() -> None:
+    """Downgrade schema."""
+    # ### commands auto generated by Alembic - please adjust! ###
+    pass
+    # ### end Alembic commands ###
+
+```
+
+---
+
+## migrations/versions/73f82b54943b_add_entry_table.py
+
+```python
+"""Add entry table
+
+Revision ID: 73f82b54943b
+Revises: 9d02a3138fb2
+Create Date: 2025-07-08 20:10:24.520889
+
+"""
+from typing import Sequence, Union
+
+from alembic import op
+import sqlalchemy as sa
+
+
+# revision identifiers, used by Alembic.
+revision: str = '73f82b54943b'
+down_revision: Union[str, Sequence[str], None] = '9d02a3138fb2'
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+
+def upgrade() -> None:
+    """Upgrade schema."""
+    # ### commands auto generated by Alembic - please adjust! ###
+    op.create_table('entry',
+    sa.Column('id', sa.String(), nullable=False),
+    sa.Column('work', sa.String(length=256), nullable=False),
+    sa.Column('struggle', sa.String(length=256), nullable=False),
+    sa.Column('intention', sa.String(length=256), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.PrimaryKeyConstraint('id')
+    )
+    # ### end Alembic commands ###
+
+
+def downgrade() -> None:
+    """Downgrade schema."""
+    # ### commands auto generated by Alembic - please adjust! ###
+    op.drop_table('entry')
+    # ### end Alembic commands ###
+
+```
+
+---
+
+## app/main.py
+
+```python
+# app/main.py
+from __future__ import annotations
+
+import logging
+import os
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+
+from app.core.config import settings
+from app.routers.journal_router import router as journal_router
+
+# Ensure we at least have INFO logs if nothing else configures logging.
+root_logger = logging.getLogger()
+if not root_logger.hasHandlers():
+    logging.basicConfig(level=logging.INFO)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """
+    FastAPI lifespan handler. Logs DB URLs on startup.
+    Add any shutdown logic after the `yield`.
+    """
+    logger = logging.getLogger("uvicorn")
+    logger.info("DB URL in use (async): %s", settings.database_url)
+    if hasattr(settings, "sync_database_url"):
+        logger.info("DB URL in use (sync): %s", settings.sync_database_url)
+    yield  # place shutdown logic here later if needed
+
+
+app = FastAPI(title="Journal API", version="0.1.0", lifespan=lifespan)
+
+
+@app.get("/healthz", tags=["Health"], summary="Healthcheck")
+async def healthcheck() -> dict[str, str]:
+    return {"status": "ok"}
+
+
+# -------------------- Ops & Monitoring --------------------
+# 1) Logging level from env (defaults to INFO)
+_level = os.getenv("LOG_LEVEL", "INFO").upper()
+logging.getLogger().setLevel(_level)
+for _name in ("uvicorn", "uvicorn.access", "uvicorn.error", "sqlalchemy"):
+    logging.getLogger(_name).setLevel(_level)
+
+# 2) Prometheus metrics at /metrics (guarded by env + optional dep)
+if os.getenv("PROMETHEUS_ENABLED", "true").lower() in {"1", "true", "yes"}:
+    try:
+        from prometheus_fastapi_instrumentator import Instrumentator
+
+        Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
+    except Exception as e:  # pragma: no cover
+        logging.getLogger(__name__).warning("Prometheus metrics disabled: %s", e)
+
+# 3) Sentry (enabled only if SENTRY_DSN is set)
+_dsn = os.getenv("SENTRY_DSN")
+if _dsn:
+    try:
+        from sentry_sdk import init as sentry_init
+        from sentry_sdk.integrations.fastapi import FastApiIntegration
+
+        sentry_init(dsn=_dsn, integrations=[FastApiIntegration()])
+        logging.getLogger(__name__).info("Sentry initialized")
+    except Exception as e:  # pragma: no cover
+        logging.getLogger(__name__).warning("Sentry disabled: %s", e)
+# ----------------------------------------------------------
+
+
+# API routes
+app.include_router(journal_router)
+
+if __name__ == "__main__":
+    import uvicorn
+
+    # Default to localhost in dev to avoid Bandit B104; allow opt-in to 0.0.0.0 via env.
+    host = "127.0.0.1"
+    if os.getenv("DEV_BIND_ALL") == "1":
+        host = "0.0.0.0"  # nosec B104: dev-only opt-in
+    uvicorn.run("app.main:app", host=host, port=8000, reload=True)
+
+```
+
+---
+
+## app/core/config.py
+
+```python
+# app/core/config.py
+from __future__ import annotations
+
+import os
+from functools import lru_cache
+from typing import ClassVar
+
+from pydantic import AliasChoices, Field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict  # Pydantic v2 settings
+
+
+class Settings(BaseSettings):
+    """
+    Centralized application settings (Pydantic v2).
+    - Prefers DATABASE_URL when present; otherwise builds async URL from DB_* pieces.
+    - Exposes a .sync_database_url for Alembic (strips +asyncpg).
+    - Adds Ops/Monitoring toggles used by app.main:
+        LOG_LEVEL, PROMETHEUS_ENABLED, SENTRY_DSN, DEV_BIND_ALL
+    """
+
+    # ---------------------- Database (pieces) ----------------------
+    db_host: str = Field(default="localhost", validation_alias=AliasChoices("DB_HOST", "db_host"))
+    db_port: int = Field(default=5432, validation_alias=AliasChoices("DB_PORT", "db_port"))
+    db_name: str = Field(default="journal", validation_alias=AliasChoices("DB_NAME", "db_name"))
+    db_user: str = Field(default="postgres", validation_alias=AliasChoices("DB_USER", "db_user"))
+    db_password: str = Field(
+        default="postgres", validation_alias=AliasChoices("DB_PASSWORD", "db_password")
+    )
+
+    # Full DSN override (authoritative if provided)
+    DATABASE_URL: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("DATABASE_URL", "database_url"),
+    )
+
+    # ---------------------- Ops & Monitoring ----------------------
+    log_level: str = Field(default="INFO", validation_alias=AliasChoices("LOG_LEVEL", "log_level"))
+    prometheus_enabled: bool = Field(
+        default=True, validation_alias=AliasChoices("PROMETHEUS_ENABLED", "prometheus_enabled")
+    )
+    sentry_dsn: str | None = Field(
+        default=None, validation_alias=AliasChoices("SENTRY_DSN", "sentry_dsn")
+    )
+    dev_bind_all: bool = Field(
+        default=False, validation_alias=AliasChoices("DEV_BIND_ALL", "dev_bind_all")
+    )
+
+    # Allowed levels (class-level constant for validation)
+    _ALLOWED_LEVELS: ClassVar[set[str]] = {
+        "CRITICAL",
+        "ERROR",
+        "WARNING",
+        "INFO",
+        "DEBUG",
+        "NOTSET",
+    }
+
+    # Pydantic v2 settings config:
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        extra="ignore",  # tolerate unrelated keys (avoids Alembic crashes)
+        env_prefix="",  # read variables as-is
+    )
+
+    # Normalize/validate log level
+    @field_validator("log_level", mode="before")
+    @classmethod
+    def _normalize_log_level(cls, v: str) -> str:
+        if v is None:
+            return "INFO"
+        level = str(v).upper().strip()
+        return level if level in cls._ALLOWED_LEVELS else "INFO"
+
+    # ---------------------- Derived URLs ----------------------
+    @property
+    def database_url(self) -> str:
+        """
+        Single source of truth for the app’s async DB URL.
+        Precedence:
+          1) env var DATABASE_URL / database_url (via Pydantic or os.environ)
+          2) piecewise settings (db_user/password/host/port/name)
+        Normalizes to 'postgresql+asyncpg://...' for the async engine.
+        """
+        # Prefer what Pydantic loaded, but also look directly at the environment
+        url = os.getenv("DATABASE_URL") or os.getenv("database_url") or self.DATABASE_URL
+        if url:
+            # Normalize to async driver if needed
+            if url.startswith("postgresql://"):
+                url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+            return url
+
+        # Fallback from parts (async driver)
+        return (
+            f"postgresql+asyncpg://{self.db_user}:{self.db_password}"
+            f"@{self.db_host}:{self.db_port}/{self.db_name}"
+        )
+
+    @property
+    def sync_database_url(self) -> str:
+        """
+        Convenience for Alembic or other sync-only tools.
+        Converts '+asyncpg' to sync psycopg/psycopg2-style URL.
+        """
+        return self.database_url.replace("postgresql+asyncpg://", "postgresql://", 1)
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
+
+
+settings = get_settings()
+
+```
+
+---
+
+## app/db/base.py
+
+```python
+from sqlalchemy.orm import DeclarativeBase
+
+
+class Base(DeclarativeBase):
+    pass
+
+```
+
+---
+
+## app/db/session.py
+
+```python
+from collections.abc import AsyncGenerator
+
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
+from sqlalchemy.pool import NullPool
+
+from app.core.config import settings
+
+# Use NullPool so connections are not reused across different event loops
+# during tests (prevents "future attached to a different loop" / asyncpg
+# "another operation is in progress" errors).
+engine = create_async_engine(
+    settings.database_url,  # must be postgresql+asyncpg per project rules
+    echo=False,
+    future=True,
+    poolclass=NullPool,
+)
+
+SessionLocal = async_sessionmaker(
+    bind=engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+)
+
+
+async def get_session() -> AsyncGenerator[AsyncSession, None]:
+    """FastAPI dependency that yields an AsyncSession."""
+    async with SessionLocal() as session:
+        yield session
+
+
+# --- compatibility alias for existing imports ---
+get_db = get_session
+
+```
+
+---
+
+## app/models/entry.py
+
+```python
+from uuid import uuid4
+
+from sqlalchemy import Column, DateTime, String
+from sqlalchemy.sql import func
+
+from app.db.base import Base
+
+
+class Entry(Base):
+    __tablename__ = "entry"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid4()))
+    work = Column(String(256), nullable=False)
+    struggle = Column(String(256), nullable=False)
+    intention = Column(String(256), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+```
+
+---
+
+## app/routers/journal_router.py
+
+```python
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.session import get_db
+from app.schemas.entry import EntryCreate, EntryOut, EntryUpdate
+from app.services.entry_service import EntryService
+
+router = APIRouter(prefix="/entries", tags=["Journal Entries"])
+
+
+def get_entry_service(db: AsyncSession = Depends(get_db)) -> EntryService:
+    """
+    Constructs the service with the real DB session.
+    In tests, we will monkey-patch this function to return a mock.
+    """
+    return EntryService(db)
+
+
+@router.post(
+    "/",
+    response_model=EntryOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_entry(
+    entry: EntryCreate,
+    service: EntryService = Depends(get_entry_service),
+) -> EntryOut:
+    return await service.create_entry(entry)
+
+
+@router.get(
+    "/",
+    response_model=list[EntryOut],
+)
+async def list_entries(
+    service: EntryService = Depends(get_entry_service),
+) -> list[EntryOut]:
+    return await service.get_all_entries()
+
+
+@router.get(
+    "/{entry_id}",
+    response_model=EntryOut,
+)
+async def get_entry(
+    entry_id: str,
+    service: EntryService = Depends(get_entry_service),
+) -> EntryOut:
+    entry = await service.get_entry_by_id(entry_id)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    return entry
+
+
+@router.put(
+    "/{entry_id}",
+    response_model=EntryOut,
+)
+async def update_entry(
+    entry_id: str,
+    updated: EntryUpdate,
+    service: EntryService = Depends(get_entry_service),
+) -> EntryOut:
+    entry = await service.update_entry(entry_id, updated)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    return entry
+
+
+@router.delete(
+    "/{entry_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_entry(
+    entry_id: str,
+    service: EntryService = Depends(get_entry_service),
+) -> None:
+    success = await service.delete_entry(entry_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    # Returning None is fine for 204 No Content.
+    return None
+
+```
+
+---
+
+## app/schemas/entry.py
+
+```python
+from datetime import datetime
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+# Base schema for shared fields
+class EntryBase(BaseModel):
+    work: str = Field(..., max_length=256, description="What did you work on today?")
+    struggle: str = Field(
+        ..., max_length=256, description="What’s one thing you struggled with today?"
+    )
+    intention: str = Field(..., max_length=256, description="What will you study/work on tomorrow?")
+
+
+# Used for entry creation (POST)
+class EntryCreate(EntryBase):
+    pass
+
+
+# Used for entry update (PUT/PATCH) - allow partial updates
+class EntryUpdate(BaseModel):
+    work: str | None = None
+    struggle: str | None = None
+    intention: str | None = None
+
+    model_config = ConfigDict(extra="forbid")  # Disallow unknown fields
+
+
+# Used for reading from DB and returning to client
+class EntryOut(EntryBase):
+    id: UUID
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+```
+
+---
+
+## app/services/entry_service.py
+
+```python
+from uuid import uuid4
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.entry import Entry as EntryModel
+from app.schemas.entry import EntryCreate, EntryOut, EntryUpdate
+
+
+class EntryService:
+    def __init__(self, db: AsyncSession):
+        self.db = db
+
+    async def create_entry(self, entry_in: EntryCreate) -> EntryOut:
+        new_entry = EntryModel(
+            id=str(uuid4()),
+            work=entry_in.work,
+            struggle=entry_in.struggle,
+            intention=entry_in.intention,
+        )
+        self.db.add(new_entry)
+        await self.db.commit()
+        await self.db.refresh(new_entry)
+        return EntryOut.model_validate(new_entry)
+
+    async def get_entry_by_id(self, entry_id: str) -> EntryOut | None:
+        result = await self.db.execute(select(EntryModel).where(EntryModel.id == entry_id))
+        entry = result.scalar_one_or_none()
+        return EntryOut.model_validate(entry) if entry else None
+
+    async def get_all_entries(self) -> list[EntryOut]:
+        result = await self.db.execute(select(EntryModel))
+        entries = result.scalars().all()
+        return [EntryOut.model_validate(entry) for entry in entries]
+
+    async def update_entry(self, entry_id: str, entry_in: EntryUpdate) -> EntryOut | None:
+        result = await self.db.execute(select(EntryModel).where(EntryModel.id == entry_id))
+        entry = result.scalar_one_or_none()
+        if not entry:
+            return None
+        for field, value in entry_in.model_dump(exclude_unset=True).items():
+            setattr(entry, field, value)
+        await self.db.commit()
+        await self.db.refresh(entry)
+        return EntryOut.model_validate(entry)
+
+    async def delete_entry(self, entry_id: str) -> bool:
+        result = await self.db.execute(select(EntryModel).where(EntryModel.id == entry_id))
+        entry = result.scalar_one_or_none()
+        if not entry:
+            return False
+        await self.db.delete(entry)
+        await self.db.commit()
+        return True
+
+```
+
+---
+
+## Makefile
+
+```make
+# ===== journal-starter — Makefile =====
+# Auto-load .env if present
+ifneq (,$(wildcard .env))
+include .env
+export
+endif
+
+PYTHON ?= python3
+
+# k6 helpers
+K6 ?= k6
+BASE_URL ?= https://journal-starter.onrender.com
+
+.DEFAULT_GOAL := help
+.PHONY: help run test cov cov-xml ci migrate current revision downgrade \
+        db-up db-down db-logs db-wait \
+        format format-check lint lint-fix types \
+        precommit precommit-fix \
+        compose-up compose-down compose-logs compose-wait compose-migrate web-sh freeze \
+        smoke crud-local crud-prod
+
+help: ## Show available targets
+	@grep -hE '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) \
+	| sed -E 's/^([a-zA-Z0-9_-]+):.*## /\1:	/' \
+	| sort
+| sed -E 's/^([a-zA-Z0-9_-]+):.*## /\1:/' \
+| sort
+
+# ---- Local (no Docker) -------------------------------------------------------
+
+run: ## Run FastAPI app with reload (uses .env if present)
+	uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+test: ## Run tests quietly
+	pytest -q
+
+cov: ## Run tests with coverage (terminal)
+	pytest --cov=app --cov-report=term-missing
+
+cov-xml: ## Run tests with XML coverage (for CI/codecov)
+	pytest --cov=app --cov-report=xml
+
+ci: ## CI-style test run with coverage threshold
+	pytest --cov=app --cov-report=xml --cov-fail-under=90
+
+migrate: ## Apply Alembic migrations to head
+	alembic upgrade head
+
+current: ## Show current Alembic revision
+	alembic current
+
+revision: ## Create a new Alembic revision: make revision m="your message"
+	@if [ -z "$(m)" ]; then echo 'Usage: make revision m="your message"'; exit 1; fi
+	alembic revision -m "$(m)" --autogenerate
+
+downgrade: ## Revert one Alembic migration step
+	alembic downgrade -1
+
+freeze: ## Lock dependencies to requirements.txt
+	$(PYTHON) -m pip freeze > requirements.txt
+
+# ---- Code quality ------------------------------------------------------------
+
+format: ## Format code with black & isort
+	$(PYTHON) -m black app tests
+	$(PYTHON) -m isort app tests
+
+format-check: ## Check formatting (no changes)
+	$(PYTHON) -m black --check app tests
+	$(PYTHON) -m isort --check-only app tests
+
+lint: ## Lint with ruff
+	$(PYTHON) -m ruff check app tests
+
+lint-fix: ## Lint & autofix with ruff
+	$(PYTHON) -m ruff check --fix app tests
+
+types: ## Type check with mypy
+	$(PYTHON) -m mypy app
+
+precommit: ## Run local quality gates (lint, format-check, types)
+	$(PYTHON) -m ruff check app tests
+	$(PYTHON) -m black --check app tests
+	$(PYTHON) -m isort --check-only app tests
+	$(PYTHON) -m mypy app
+
+precommit-fix: ## Autofix, then re-check quality gates
+	$(PYTHON) -m ruff check --fix app tests
+	$(PYTHON) -m black app tests
+	$(PYTHON) -m isort app tests
+	$(PYTHON) -m mypy app
+
+# ---- Optional helpers for local single-container Postgres --------------------
+
+DB_CONTAINER ?= journal-db
+DB_IMAGE     ?= postgres:16
+DB_PORT      ?= 5432
+DB_USER      ?= postgres
+DB_PASSWORD  ?= postgres
+DB_NAME      ?= journal
+DB_VOLUME    ?= journal-db-data
+
+db-up: ## Start local Postgres in Docker on port $(DB_PORT)
+	@docker volume create $(DB_VOLUME) >/dev/null
+	docker run --name $(DB_CONTAINER) \
+		-p $(DB_PORT):5432 \
+		-e POSTGRES_USER=$(DB_USER) \
+		-e POSTGRES_PASSWORD=$(DB_PASSWORD) \
+		-e POSTGRES_DB=$(DB_NAME) \
+		-v $(DB_VOLUME):/var/lib/postgresql/data \
+		-d $(DB_IMAGE)
+
+db-down: ## Stop & remove local Postgres container (keeps volume)
+	- docker stop $(DB_CONTAINER)
+	- docker rm $(DB_CONTAINER)
+
+db-logs: ## Tail logs from local Postgres container
+	docker logs -f $(DB_CONTAINER)
+
+db-wait: ## Wait for local Postgres to accept connections (needs pg_isready)
+	@echo "Waiting for Postgres on localhost:$(DB_PORT)…"
+	@until pg_isready -h 127.0.0.1 -p $(DB_PORT) -U $(DB_USER) >/dev/null 2>&1; do \
+		sleep 1; \
+	done; \
+	echo "Postgres is ready."
+
+# ---- Docker Compose workflow -------------------------------------------------
+
+compose-up: ## Build and start API + DB via docker compose
+	docker compose up -d --build
+
+compose-down: ## Stop and remove compose stack
+	docker compose down
+
+compose-logs: ## Follow API logs
+	docker compose logs -f web
+
+compose-wait: ## Wait for compose Postgres service to be ready
+	@echo "Waiting for compose 'db' on port 5432…"
+	@until docker compose exec -T db pg_isready -U postgres >/dev/null 2>&1; do \
+		sleep 1; \
+	done; \
+	echo "Compose DB is ready."
+
+compose-migrate: ## Run Alembic upgrade inside web container
+	docker compose exec -T web alembic upgrade head
+
+web-sh: ## Shell into running web container
+	docker compose exec web /bin/bash || docker compose exec web sh
+
+# ---- k6 helpers --------------------------------------------------------------
+
+smoke: ## k6 smoke: hit /healthz on BASE_URL (default prod)
+	BASE_URL=$(BASE_URL) $(K6) run k6/smoke.js
+
+crud-local: ## k6 CRUD against local dev (http://localhost:8000)
+	BASE_URL=http://localhost:8000 $(K6) run k6/entries_crud.js
+
+crud-prod: ## (opt-in) k6 CRUD against prod (sets ALLOW_PROD=true)
+	BASE_URL=https://journal-starter.onrender.com ALLOW_PROD=true $(K6) run k6/entries_crud.js
+
+```
+
+---
+
+## render.yaml
+
+```yaml
+# render.yaml — Blueprint deploy: Web (FastAPI) + Managed Postgres
+services:
+  - type: web
+    name: journal-api
+    env: python
+    plan: free
+    region: oregon
+    autoDeploy: true
+
+    buildCommand: |
+      pip install --upgrade pip
+      pip install -r requirements.txt
+
+    startCommand: >
+      bash -lc '
+      # Render supplies DATABASE_URL as postgres:// or postgresql:// (sync).
+      # Convert to async for SQLAlchemy’s async engine at runtime.
+      export DATABASE_URL=$(echo "$DATABASE_URL" | sed -E "s/^postgres(ql)?:\/\//postgresql+asyncpg:\/\//");
+      # Run the app; Render sets $PORT
+      uvicorn app.main:app --host 0.0.0.0 --port $PORT
+      '
+
+    envVars:
+      # Link the managed DB; Render injects the connection string
+      - key: DATABASE_URL
+        fromDatabase:
+          name: journal-db
+          property: connectionString
+
+      # App env knobs
+      - key: APP_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: INFO
+      - key: PROMETHEUS_ENABLED
+        value: true
+      # - key: SENTRY_DSN
+      #   value: <your-dsn>  # leave unset to disable Sentry
+
+    healthCheckPath: /healthz
+
+    # Run DB migrations *after* each deploy
+    postdeployCommand: alembic upgrade head
+
+    headers:
+      - path: /*
+        name: Strict-Transport-Security
+        value: max-age=63072000; includeSubDomains; preload
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+
+databases:
+  - name: journal-db
+    plan: free
+    region: oregon
+
+```
+
+---
+
+## ruff.toml
+
+```toml
+# ruff.toml
+line-length = 100
+target-version = "py311"
+
+[lint]
+select = ["E", "F", "W", "I", "UP"]
+# Let Black decide wrapping; don't double-enforce line length
+ignore = ["E501"]
+
+# Migrations often have long lines / odd imports — ignore common rules there
+per-file-ignores = { "migrations/**" = ["E501", "I001", "F401", "UP007", "UP035"] }
+
+```
+
+---
+
+## pytest.ini
+
+```ini
+[pytest]
+asyncio_mode = strict
+pythonpath = .
+markers =
+    anyio: mark a test as using anyio
+
+
+```
+
+---
+
+## k6/entries_crud.js
+
+```javascript
+import http from 'k6/http';
+import { check, group, sleep, fail } from 'k6';
+import { Rate } from 'k6/metrics';
+
+export const options = {
+  vus: 3,
+  iterations: 3, // one CRUD cycle per VU
+  thresholds: {
+    unexpected_error_rate: ['rate==0'], // no unexpected HTTP statuses
+    http_req_duration: ['p(95)<1000'],  // p95 < 1s
+  },
+};
+
+// ------- Safety: default to NON-PROD; refuse prod unless allowed -------
+const BASE_URL = __ENV.BASE_URL || 'http://localhost:8000';
+const ALLOW_PROD = ( __ENV.ALLOW_PROD || 'false' ).toLowerCase() === 'true';
+if (BASE_URL.includes('onrender.com') && !ALLOW_PROD) {
+  throw new Error(
+    `Refusing to run against production (${BASE_URL}). ` +
+    `Set ALLOW_PROD=true if you really intend to run on prod.`
+  );
+}
+
+const CLEAN_OLD = ( __ENV.CLEAN_OLD || 'true' ).toLowerCase() === 'true';
+const jsonHeaders = { headers: { 'Content-Type': 'application/json' } };
+
+// custom metric: only count statuses we *didn't* expect as errors
+const unexpected_error_rate = new Rate('unexpected_error_rate');
+function record(res, okStatuses = [200]) {
+  const ok = okStatuses.includes(res.status);
+  unexpected_error_rate.add(ok ? 0 : 1);
+  return ok;
+}
+
+function marker() {
+  return `k6-smoke-${__VU}-${__ITER}-${Date.now()}`;
+}
+
+export default function () {
+  const mk = marker();
+  let createdId = null;
+
+  group('entries CRUD', () => {
+    // CREATE
+    const createRes = http.post(
+      `${BASE_URL}/entries/`,
+      JSON.stringify({ work: `k6 create ${mk}`, struggle: 'testing with k6', intention: 'verify CRUD' }),
+      jsonHeaders
+    );
+    check(createRes, {
+      'create: 2xx': (r) => record(r, [200, 201]),
+      'create: has id': (r) => (r.json('id') ?? null) !== null,
+    }) || fail(`Create failed: ${createRes.status} ${createRes.body}`);
+    createdId = createRes.json('id');
+
+    // READ (GET by id)
+    const getRes = http.get(`${BASE_URL}/entries/${createdId}`);
+    check(getRes, {
+      'get: 200': (r) => record(r, [200]),
+      'get: id matches': (r) => r.json('id') === createdId,
+      'get: work contains marker': (r) => String(r.json('work') || '').includes(mk),
+    });
+
+    // UPDATE
+    const putRes = http.put(
+      `${BASE_URL}/entries/${createdId}`,
+      JSON.stringify({ work: `k6 update ${mk}`, struggle: 'testing with k6 (updated)', intention: 'verify update' }),
+      jsonHeaders
+    );
+    check(putRes, {
+      'update: 200': (r) => record(r, [200]),
+      'update: work updated': (r) => String(r.json('work') || '').includes('k6 update'),
+    });
+
+    // LIST
+    const listRes = http.get(`${BASE_URL}/entries/`);
+    check(listRes, {
+      'list: 200': (r) => record(r, [200]),
+      'list: array': (r) => Array.isArray(r.json()),
+      'list: contains our id': (r) => (r.json() || []).some((e) => e.id === createdId),
+    });
+
+    // DELETE
+    const delRes = http.del(`${BASE_URL}/entries/${createdId}`);
+    check(delRes, {
+      'delete: 200/204': (r) => record(r, [200, 204]),
+    });
+
+    // VERIFY DELETED (404 is EXPECTED here)
+    const getGone = http.get(`${BASE_URL}/entries/${createdId}`);
+    check(getGone, {
+      'get after delete: 404': (r) => record(r, [404]),
+    });
+
+    // Optional cleanup of any stale k6 entries from earlier failed runs
+    if (CLEAN_OLD) {
+      const all = listRes.status === 200 ? (listRes.json() || []) : [];
+      for (const e of all) {
+        if (typeof e?.work === 'string' && e.work.startsWith('k6 ')) {
+          const r = http.del(`${BASE_URL}/entries/${e.id}`);
+          record(r, [200, 204, 404]);
+        }
+      }
+    }
+  });
+
+  sleep(0.5);
+}
+
+```
+
+---
+
+## README.md
+
+```markdown
+Got you. Here’s a one-shot command that backs up your current README, writes the polished version (with a “How to Contribute” footer), and commits it.
+
+````bash
+# Backup, replace README.md, and commit
+cp README.md README.md.bak-$(date +%F) 2>/dev/null || true
+
+cat > README.md <<'MD'
+# Journal API
+
+[![CI](https://github.com/cfergile/journal-starter/actions/workflows/ci.yml/badge.svg)](https://github.com/cfergile/journal-starter/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/cfergile/journal-starter/branch/main/graph/badge.svg)](https://codecov.io/gh/cfergile/journal-starter)
+![Release](https://img.shields.io/github/v/release/cfergile/journal-starter?sort=semver)
+[![Uptime - API Health](https://github.com/cfergile/journal-starter/actions/workflows/uptime.yml/badge.svg)](https://github.com/cfergile/journal-starter/actions/workflows/uptime.yml)
+[![k6 CRUD (ephemeral env)](https://github.com/cfergile/journal-starter/actions/workflows/k6-crud-ephemeral.yml/badge.svg)](https://github.com/cfergile/journal-starter/actions/workflows/k6-crud-ephemeral.yml)
+
+A FastAPI-based CRUD Journal API built as part of the **Learn to Cloud Guide** capstone project.  
+Goal: practice Python, APIs, databases, testing — and ship it publicly.
+
+---
+
+## 🌐 Live Demo (Render)
+
+- Base: **https://journal-starter.onrender.com**  
+- Health: **/healthz** → https://journal-starter.onrender.com/healthz  
+- Docs: **/docs** → https://journal-starter.onrender.com/docs
+
+> Free tier note: cold starts can make the first request a bit slow.
+
+---
+
+## 🎯 Objectives
+
+**Core (capstone):**
+- FastAPI REST API
+- CRUD for journal entries
+- PostgreSQL + Alembic migrations
+- pytest + httpx.AsyncClient tests
+
+**Extended:**
+- Docker & Makefile for reproducible dev
+- CI quality gates (lint, type, security, coverage)
+- Public deploy on Render (free)
+- Ops & Monitoring (health, metrics, uptime + Slack, k6)
+
+---
+
+## 🚀 Features
+
+- **POST** `/entries/` — create entry  
+- **GET** `/entries/` — list entries  
+- **GET** `/entries/{id}` — get entry  
+- **PUT** `/entries/{id}` — update entry  
+- **DELETE** `/entries/{id}` — delete entry  
+- **GET** `/healthz` — health check  
+- **GET** `/metrics` — Prometheus metrics (enabled when `PROMETHEUS_ENABLED=true`)
+
+Entry fields: `work`, `struggle`, `intention`, plus `id`, `created_at`, `updated_at`.
+
+---
+
+## 🛠 Setup Options
+
+### 1) Local (recommended for dev)
+
+**Requirements:** Python 3.11+, local Postgres.
+
+```bash
+git clone https://github.com/cfergile/journal-starter.git
+cd journal-starter
+
+cp .env.example .env
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+
+# DB migrate
+alembic upgrade head
+
+# Run API
+uvicorn app.main:app --reload
+# or: make run
+
+# Local endpoints
+# API:  http://localhost:8000
+# Docs: http://localhost:8000/docs
+````
+
+### 2) Docker Compose
+
+**Requirements:** Docker / Docker Compose.
+
+```bash
+git clone https://github.com/cfergile/journal-starter.git
+cd journal-starter
+
+cp .env.example .env
+make compose-up
+make compose-migrate  # runs Alembic upgrade in the container
+```
+
+---
+
+## 🧪 Testing & CI Quality Gates
+
+Local gates (mirror CI):
+
+```bash
+make precommit   # ruff, black, isort, mypy
+make test        # pytest -q
+make cov         # coverage in terminal
+make ci          # coverage XML + threshold ≥90%
+make lint-fix    # autofix linting
+```
+
+CI includes: Ruff • Black • isort • mypy • pytest • Bandit • Trivy FS (passing) • Codecov.
+
+### k6 quick checks
+
+```bash
+# Smoke test against prod (hits /healthz)
+make smoke
+# Override to test locally:
+make smoke BASE_URL=http://localhost:8000
+
+# CRUD test against local dev (safe)
+make crud-local
+
+# (Opt-in) CRUD against prod (mutates prod data — only when you mean it)
+make crud-prod
+```
+
+Ephemeral E2E (CI): the `k6-crud-ephemeral.yml` workflow spins up Postgres → runs Alembic → starts the API → runs the k6 CRUD test. Does **not** touch prod/staging.
+
+---
+
+## ⚙️ Environment Variables
+
+See `.env.example` for the full list.
+
+```ini
+# Database (pieces)
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=journal
+DB_USER=postgres
+DB_PASSWORD=change_this_password
+
+# Optional full DSN for async SQLAlchemy (authoritative at runtime via settings.database_url)
+# DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/journal
+
+# Ops
+LOG_LEVEL=INFO
+# Enable Prometheus /metrics
+PROMETHEUS_ENABLED=true
+# Optional error tracking
+# SENTRY_DSN=...
+```
+
+Alembic uses a sync URL for migrations, while the app uses the async DSN at runtime.
+Render injects `DATABASE_URL`; the `render.yaml` converts it to `postgresql+asyncpg://` on start.
+
+---
+
+## 🛡️ Ops & Monitoring
+
+* Healthcheck: `GET /healthz` → `{"status":"ok"}`
+* Metrics: `GET /metrics` (enabled when `PROMETHEUS_ENABLED=true`)
+* Logging: Python logging + Uvicorn access logs (`LOG_LEVEL=INFO` by default)
+* Uptime: GitHub Actions cron (warm-up, retries, Slack alert on failure)
+* Runtime: Inspect deploy history, logs, and health via Render dashboard
+
+**Quick checks:**
+
+```bash
+# health
+curl -fsS https://journal-starter.onrender.com/healthz || echo "DOWN"
+
+# metrics (if enabled)
+curl -fsS https://journal-starter.onrender.com/metrics | head
+```
+
+---
+
+## 📦 Tech Stack
+
+FastAPI • SQLAlchemy 2.0 (async) • Alembic • PostgreSQL • pytest/httpx
+Ruff • Black • isort • mypy • Bandit • Trivy • GitHub Actions • Codecov
+Render (deploy) • Prometheus-style metrics • k6
+
+---
+
+## 📚 Learning Outcomes
+
+* Built and tested an async API with migrations
+* Reproducible dev via Makefile/Docker
+* Hardened CI (lint/type/security/coverage)
+* Public deploy on Render with Postgres add-on
+* Ops: health, metrics, uptime+Slack, smoke/CRUD performance checks
+
+---
+
+## ☁️ Deployment
+
+✅ Render (live): [https://journal-starter.onrender.com](https://journal-starter.onrender.com)
+
+---
+
+## 🤝 How to Contribute
+
+Contributions welcome!
+
+1. **Fork & clone** this repo.
+2. **Create a branch**: `git checkout -b feat/short-title`
+3. **Set up locally** and run checks:
+
+   ```bash
+   make precommit
+   make ci
+   ```
+4. **Add tests** for new behavior when possible.
+5. **Commit** with a clear message (e.g., `feat: add XYZ` or `fix: handle ABC`).
+6. **Push & open a PR** against `main`.
+7. Ensure **CI is green** (lint, tests, security, coverage).
+
+Thanks for helping make this project better!
+MD
+
+
+```
+
+---
+
+## codecov.yml
+
+```yaml
+codecov:
+  require_ci_to_pass: yes
+
+coverage:
+  status:
+    project:
+      default:
+        target: 80%
+        threshold: 1%
+    patch:
+      default:
+        target: 80%
+
+ignore:
+  - "tests"
+  - "**/__init__.py"
+
+```

@@ -12,6 +12,8 @@ cat > README.md <<'MD'
 ![Release](https://img.shields.io/github/v/release/cfergile/journal-starter?sort=semver)
 [![Uptime - API Health](https://github.com/cfergile/journal-starter/actions/workflows/uptime.yml/badge.svg)](https://github.com/cfergile/journal-starter/actions/workflows/uptime.yml)
 [![k6 CRUD (ephemeral env)](https://github.com/cfergile/journal-starter/actions/workflows/k6-crud-ephemeral.yml/badge.svg)](https://github.com/cfergile/journal-starter/actions/workflows/k6-crud-ephemeral.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 
 A FastAPI-based CRUD Journal API built as part of the **Learn to Cloud Guide** capstone project.  
 Goal: practice Python, APIs, databases, testing — and ship it publicly.
