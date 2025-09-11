@@ -186,3 +186,45 @@ coverage.xml
 Makefile.backup-*
 Makefile.broken-*
 .DS_Store
+# Python caches
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtualenv / tooling
+.venv/
+*.egg-info/
+
+# Local env / secrets
+.env
+
+# Test artifacts
+.coverage
+coverage.xml
+
+# Editor junk
+.DS_Store
+
+# Ad-hoc backups
+*.bak-*
+# Python caches
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtualenv / tooling
+.venv/
+*.egg-info/
+
+# Local env / secrets
+.env
+
+# Test artifacts
+.coverage
+coverage.xml
+
+# Editor junk
+.DS_Store
+
+# Ad-hoc backups
+*.bak-*
