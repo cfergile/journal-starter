@@ -158,3 +158,7 @@ crud-local: ## k6 CRUD against local dev (http://localhost:8000)
 
 crud-prod: ## (opt-in) k6 CRUD against prod (sets ALLOW_PROD=true)
 	BASE_URL=https://journal-starter.onrender.com ALLOW_PROD=true $(K6) run k6/entries_crud.js
+
+.PHONY: crud-smart
+crud-smart:
+	@bash scripts/smart_k6.sh
