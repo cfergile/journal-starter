@@ -4,8 +4,8 @@ set -euo pipefail
 PORT="${PORT:-8000}"
 HOST="${HOST:-0.0.0.0}"
 APP_MODULE="${APP_MODULE:-app.main:app}"
-BASE_URL_DEFAULT="http://localhost:${PORT}"
-BASE_URL="${BASE_URL:-$BASE_URL_DEFAULT}"
+BASE_URL_DEFAULT="http://localhost:"
+BASE_URL="-e"
 
 wait_health() {
   for _ in {1..120}; do
@@ -23,7 +23,7 @@ if ! lsof -tiTCP:${PORT} -sTCP:LISTEN >/dev/null 2>&1; then
   echo "⏳ Waiting for /healthz ..."
   wait_health || { echo "❌ Server failed health check at ${BASE_URL}/healthz"; exit 1; }
 else
-  echo "🔁 Reusing existing server on :${PORT}"
+  echo "🔁 Reusing existing server on :${PORT}"; BASE_URL="http://localhost:"
   wait_health || { echo "❌ Existing server on :${PORT} failed health check"; exit 1; }
 fi
 
