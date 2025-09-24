@@ -52,3 +52,36 @@ class EntryService:
         await self.db.delete(entry)
         await self.db.commit()
         return True
+
+# --- added by one-shot: flexible listing helper ---
+from typing import Optional
+
+# Note: local imports keep this patch self-contained
+async def query_entries(
+    session, *,
+    limit: int = 50,
+    offset: int = 0,
+    q: Optional[str] = None,
+    sort: str = "new",  # "new" | "old"
+):
+    from sqlalchemy import select, or_
+    from app.models.entry import Entry
+
+    stmt = select(Entry)
+
+    if q:
+        pattern = f"%{q}%"
+        stmt = stmt.where(
+            or_(
+                Entry.work.ilike(pattern),
+                Entry.struggle.ilike(pattern),
+                Entry.intention.ilike(pattern),
+            )
+        )
+
+    stmt = stmt.order_by(
+        Entry.created_at.desc() if sort == "new" else Entry.created_at.asc()
+    ).limit(limit).offset(offset)
+
+    res = await session.execute(stmt)
+    return list(res.scalars().all())

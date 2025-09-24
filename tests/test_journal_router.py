@@ -165,3 +165,34 @@ async def test_create_entry_422_field_too_long(override_entry_service):
         payload = {"work": long_text, "struggle": "ok", "intention": "ok"}
         response = await ac.post("/entries/", json=payload)
     assert response.status_code == 422
+
+import pytest
+
+@pytest.mark.asyncio
+async def test_entries_search_endpoint(async_client):
+    # create 3 entries
+    ids = []
+    for i in range(3):
+        r = await async_client.post("/entries/", json={
+            "work": f"learn fastapi {i}",
+            "struggle": "testing",
+            "intention": "practice"
+        })
+        assert r.status_code == 201
+        ids.append(r.json()["id"])
+
+    # filter by q
+    r = await async_client.get("/entries/search", params={"q": "fastapi"})
+    assert r.status_code == 200
+    items = r.json()
+    assert isinstance(items, list) and len(items) >= 3
+    assert any("learn fastapi" in x["work"] for x in items)
+
+    # pagination
+    r = await async_client.get("/entries/search", params={"limit": 2, "offset": 0, "sort": "new"})
+    assert r.status_code == 200
+    assert len(r.json()) <= 2
+
+    # cleanup (best-effort)
+    for id_ in ids:
+        await async_client.delete(f"/entries/{id_}")

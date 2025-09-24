@@ -80,3 +80,31 @@ async def delete_entry(
         raise HTTPException(status_code=404, detail="Entry not found")
     # Returning None is fine for 204 No Content.
     return None
+
+# --- added by one-shot: /entries/search endpoint ---
+from fastapi import Query
+try:
+    from typing import Literal
+except Exception:  # typing_extensions fallback if needed
+    from typing_extensions import Literal
+from typing import Optional
+from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import Depends
+
+try:
+    # If already imported above, these won't error at runtime
+    from app.schemas.entry import EntryRead
+    from app.db.session import get_session
+except Exception:
+    pass
+
+@router.get("/search", response_model=list["EntryRead"] if "EntryRead" in globals() else list)
+async def search_entries(
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    q: Optional[str] = None,
+    sort: Literal["new", "old"] = "new",
+    session: AsyncSession = Depends(get_session),
+):
+    from app.services.entry_service import query_entries
+    return await query_entries(session, limit=limit, offset=offset, q=q, sort=sort)
